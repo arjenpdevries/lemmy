@@ -178,33 +178,11 @@ pub trait ActorType {
   /// For a given community, returns the inboxes of all followers.
   async fn get_follower_inboxes(&self, pool: &DbPool) -> Result<Vec<Url>, LemmyError>;
 
-  // TODO move these to the db rows
-  fn get_inbox_url(&self) -> Result<Url, ParseError> {
-    Url::parse(&format!("{}/inbox", &self.actor_id()))
-  }
+  fn get_shared_inbox_or_inbox_url(&self) -> Url;
 
-  fn get_shared_inbox_url(&self) -> Result<Url, LemmyError> {
-    let actor_id = self.actor_id();
-    let url = format!(
-      "{}://{}{}/inbox",
-      &actor_id.scheme(),
-      &actor_id.host_str().context(location_info!())?,
-      if let Some(port) = actor_id.port() {
-        format!(":{}", port)
-      } else {
-        "".to_string()
-      },
-    );
-    Ok(Url::parse(&url)?)
-  }
-
-  fn get_outbox_url(&self) -> Result<Url, ParseError> {
-    Url::parse(&format!("{}/outbox", &self.actor_id()))
-  }
-
-  fn get_followers_url(&self) -> Result<Url, ParseError> {
-    Url::parse(&format!("{}/followers", &self.actor_id()))
-  }
+  /// Outbox URL is not generally used by Lemmy, so it can be generated on the fly (but only for
+  /// local actors).
+  fn get_outbox_url(&self) -> Result<Url, ParseError>;
 
   fn get_public_key_ext(&self) -> Result<PublicKeyExtension, LemmyError> {
     Ok(
@@ -216,6 +194,67 @@ pub trait ActorType {
       .to_ext(),
     )
   }
+}
+
+pub enum EndpointType {
+  Community,
+  User,
+  Post,
+  Comment,
+  PrivateMessage,
+}
+
+/// Generates the ActivityPub ID for a given object type and ID.
+pub fn generate_apub_endpoint(
+  endpoint_type: EndpointType,
+  name: &str,
+) -> Result<lemmy_db_schema::Url, ParseError> {
+  let point = match endpoint_type {
+    EndpointType::Community => "c",
+    EndpointType::User => "u",
+    EndpointType::Post => "post",
+    EndpointType::Comment => "comment",
+    EndpointType::PrivateMessage => "private_message",
+  };
+
+  Ok(
+    Url::parse(&format!(
+      "{}/{}/{}",
+      Settings::get().get_protocol_and_hostname(),
+      point,
+      name
+    ))?
+    .into(),
+  )
+}
+
+pub fn generate_followers_url(
+  actor_id: &lemmy_db_schema::Url,
+) -> Result<lemmy_db_schema::Url, ParseError> {
+  Ok(Url::parse(&format!("{}/followers", actor_id))?.into())
+}
+
+pub fn generate_inbox_url(
+  actor_id: &lemmy_db_schema::Url,
+) -> Result<lemmy_db_schema::Url, ParseError> {
+  Ok(Url::parse(&format!("{}/inbox", actor_id))?.into())
+}
+
+pub fn generate_shared_inbox_url(
+  actor_id: &lemmy_db_schema::Url,
+) -> Result<lemmy_db_schema::Url, LemmyError> {
+  let actor_id = actor_id.clone().into_inner();
+  let url = format!(
+    "{}://{}{}/inbox",
+    &actor_id.scheme(),
+    &actor_id.host_str().context(location_info!())?,
+    if let Some(port) = actor_id.port() {
+      format!(":{}", port)
+    } else {
+      "".to_string()
+    },
+  );
+  Ok(Url::parse(&url)?.into())
 }
 
 /// Store a sent or received activity in the database, for logging purposes. These records are not
