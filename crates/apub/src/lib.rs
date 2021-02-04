@@ -140,6 +140,7 @@ pub trait ApubLikeableType {
 /// implemented by all actors.
 #[async_trait::async_trait(?Send)]
 pub trait ActorType {
+  fn is_local(&self) -> bool;
   fn actor_id(&self) -> Url;
 
   // TODO: every actor should have a public key, so this shouldnt be an option (needs to be fixed in db)
@@ -182,7 +183,12 @@ pub trait ActorType {
 
   /// Outbox URL is not generally used by Lemmy, so it can be generated on the fly (but only for
   /// local actors).
-  fn get_outbox_url(&self) -> Result<Url, ParseError>;
+  fn get_outbox_url(&self) -> Result<Url, LemmyError> {
+    if !self.is_local() {
+      return Err(anyhow!("get_outbox_url() called for remote actor").into());
+    }
+    Ok(Url::parse(&format!("{}/outbox", &self.actor_id()))?)
+  }
 
   fn get_public_key_ext(&self) -> Result<PublicKeyExtension, LemmyError> {
     Ok(

@@ -29,14 +29,16 @@ use lemmy_db_views_actor::community_follower_view::CommunityFollowerView;
 use lemmy_structs::blocking;
 use lemmy_utils::{location_info, LemmyError};
 use lemmy_websocket::LemmyContext;
-use url::{ParseError, Url};
+use url::Url;
 
 #[async_trait::async_trait(?Send)]
 impl ActorType for Community {
+  fn is_local(&self) -> bool {
+    self.local
+  }
   fn actor_id(&self) -> Url {
     self.actor_id.to_owned().into_inner()
   }
-
   fn public_key(&self) -> Option<String> {
     self.public_key.to_owned()
   }
@@ -50,11 +52,6 @@ impl ActorType for Community {
       .clone()
       .unwrap_or_else(|| self.inbox_url.to_owned())
       .into()
-  }
-
-  fn get_outbox_url(&self) -> Result<Url, ParseError> {
-    assert!(self.local);
-    Url::parse(&format!("{}/outbox", &self.actor_id()))
   }
 
   async fn send_follow(

@@ -21,10 +21,13 @@ use lemmy_db_schema::source::{
 use lemmy_structs::blocking;
 use lemmy_utils::LemmyError;
 use lemmy_websocket::LemmyContext;
-use url::{ParseError, Url};
+use url::Url;
 
 #[async_trait::async_trait(?Send)]
 impl ActorType for User_ {
+  fn is_local(&self) -> bool {
+    self.local
+  }
   fn actor_id(&self) -> Url {
     self.actor_id.to_owned().into_inner()
   }
@@ -43,11 +46,6 @@ impl ActorType for User_ {
       .clone()
       .unwrap_or_else(|| self.inbox_url.to_owned())
       .into()
-  }
-
-  fn get_outbox_url(&self) -> Result<Url, ParseError> {
-    assert!(self.local);
-    Url::parse(&format!("{}/outbox", &self.actor_id()))
   }
 
   /// As a given local user, send out a follow request to a remote community.
